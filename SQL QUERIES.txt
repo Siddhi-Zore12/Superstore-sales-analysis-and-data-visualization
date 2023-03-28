@@ -1,0 +1,217 @@
+1.What percentage of total orders were shipped on the same date?
+SELECT (COUNT(*)/9799)*100 FROM  `superstore` WHERE `Ship_Mode` ='Same Day';
+
+2.Name top 3 customers with highest total value of orders.
+SELECT `Customer_ID`, `Customer_Name`, SUM(`Sales`) FROM `superstore` GROUP BY `Customer_ID`, `Customer_Name` ORDER BY SUM(`Sales`) DESC LIMIT 3
+
+3.Find the top 5 items with the highest average sales per day.
+SELECT `Product_ID`, AVG(`Sales`) FROM `superstore` GROUP BY `Product_ID` ORDER BY AVG(`Sales`) DESC LIMIT 5;
+
+4.Write a query to find the average order value for each customer, and rank the customers by their average order value.
+SELECT 
+     "Customer_ID" AS `Customer_ID`,
+	 "Customer_Name" AS `Customer_Name`,
+    0.0 AS Avg_Order_Value
+FROM superstore
+GROUP BY `Customer_ID`,`Customer_Name`
+ORDER BY AVG(`Sales`)
+LIMIT 1
+
+5.Give the name of customers who ordered highest and lowest orders from each city.
+(SELECT
+    A.MAX_SALE,
+    A.MIN_SALE,
+    B.highest_order_customer,
+    D.lowest_order_customer
+FROM
+    (
+    SELECT DISTINCT
+        T.`City`,
+        (
+            MAX(`Sales`) OVER(
+        PARTITION BY `City`
+        )
+        ) AS highest_order_sales,
+        (
+            MIN(`Sales`) OVER(
+        PARTITION BY `City`
+        )
+        ) AS lowest_order_sales
+    FROM
+        (
+        SELECT
+            `City`,
+            `Customer_Name`,
+            SUM(`Sales`) AS `Sales`
+        FROM
+            superstore
+        GROUP BY
+            `City`,
+            `Customer_Name`
+        ORDER BY
+            `City`
+    ) AS T
+) AS A
+JOIN(
+    SELECT
+        T1.`City`,
+        T1.`Customer_Name` AS highest_order_customer
+    FROM
+        (
+        SELECT DISTINCT
+            T.`City`,
+            T.`Customer_Name`,
+            (
+                RANK() OVER(
+                PARTITION BY T.`City`
+            ORDER BY
+                `Sales`
+            DESC
+            )) AS MAX_SALE,
+                (
+                    RANK() OVER(
+                    PARTITION BY T.`City`
+                ORDER BY
+                    `Sales`
+                )) AS MIN_SALE
+                FROM
+                    (
+                    SELECT
+                        `City`,
+                        `Customer_Name`,
+                        SUM(`Sales`) AS `Sales`
+                    FROM
+                        superstore
+                    GROUP BY
+                        `City`,
+                        `Customer_Name`
+                    ORDER BY
+                        `City`
+                ) AS T
+                ) AS T1
+            WHERE
+                T1.MAX_SALE = 1
+            ) AS B
+        ON
+            A.City = B.City
+        JOIN(
+            SELECT
+                T1.`City`,
+                T1.`Customer_Name` AS lowest_order_customer
+            FROM
+                (
+                SELECT DISTINCT
+                    T.`City`,
+                    T.`Customer_Name`,
+                    (
+                        RANK() OVER(
+                        PARTITION BY T.`City`
+                    ORDER BY
+                        `Sales`
+                    )) AS MIN_SALE
+                    FROM
+                        (
+                        SELECT
+                            `City`,
+                            `Customer_Name`,
+                            SUM(`Sales`) AS `Sales`
+                        FROM
+                            superstore
+                        GROUP BY
+                            `City`,
+                            `Customer_Name`
+                        ORDER BY
+                            `City`
+                    ) AS T
+                    ) AS T1
+                WHERE
+                    T1.MIN_SALE = 1
+            ) AS D
+        ON
+            A.City = D.City);
+
+6.What is the most demanded sub-category in the west region?
+SELECT 
+	`Sub_Category`,
+    SUM(`Sales`) AS total_quantity
+FROM `superstore` 
+WHERE `Region` = 'West'
+GROUP BY `Sub_Category`
+ORDER BY total_quantity DESC
+LIMIT 1;
+
+7. Which order has the highest number of items? And which order has the highest cumulative value?
+SELECT 
+	`Order_ID`,
+    COUNT(`Order_ID`) AS total_quantity
+FROM `superstore` 
+GROUP BY `Order_ID`
+ORDER BY total_quantity DESC
+LIMIT 1
+
+8.Which order has the highest cumulative value?
+SELECT 
+	`Order_ID`,
+    (SUM(`Sales`) OVER(PARTITION BY `Order_ID`)) AS total_quantity
+FROM `superstore`
+ORDER BY total_quantity DESC
+LIMIT 1;
+
+9. Which segment’s order is more likely to be shipped via first class?
+SELECT
+	`Segment`
+FROM superstore
+WHERE `Ship_Mode` = "First Class"
+GROUP BY `Segment`
+ORDER BY COUNT(`Segment`) DESC
+LIMIT 1;
+
+10. Which city is least contributing to total revenue?
+SELECT
+	`City`,
+    SUM(`Sales`) AS TotalSales
+FROM superstore
+GROUP BY `City`
+ORDER BY TotalSales
+LIMIT 1
+
+11. What is the average time for orders to get shipped after order is placed?
+SELECT ROUND(AVG(DIFF),4) AS AVG FROM 
+(SELECT DATEDIFF(`Ship_Date`,`Order_Date`) AS DIFF FROM `superstore` WHERE 1) AS T;
+
+12. Which segment places the highest number of orders from each state and which segment places the largest individual orders from each state?
+SELECT T1.State
+FROM
+(SELECT 
+	T.`Segment`,
+    T.`State`,
+    RANK() OVER(PARTITION BY T.`State` ORDER BY T.FREQ DESC) AS RNK 
+FROM 
+(SELECT 
+	`Segment`,
+    `State`,
+    COUNT(`Segment`) AS FREQ
+FROM superstore 
+GROUP BY `State`,`Segment`) AS T ) AS T1
+WHERE T1.RNK = 1
+
+13. Find all the customers who individually ordered on 3 consecutive days where each day’s total order was more than 50 in value. **
+SELECT 
+	T.`Customer_ID`,SUM(T.`Sales`)
+FROM
+(SELECT 
+	`Customer_ID`,
+    `Order_Date` AS D,
+    (LEAD(`Order_Date`) OVER(PARTITION BY `Customer_ID` ORDER BY `Order_Date`)) AS D1,
+    (LEAD(`Order_Date`,2) OVER(PARTITION BY `Customer_ID` ORDER BY `Order_Date`)) AS D2,
+ 	`Sales`
+ 
+FROM superstore
+) AS T
+WHERE DATEDIFF(D1,D)=1 AND DATEDIFF(D2,D1)=1
+GROUP BY T.`Customer_ID`
+
+14. Find the maximum number of days for which total sales on each day kept rising.**
+SELECT COUNT(*) FROM 
+(SELECT `Row_ID`,`City`,`Sales`, (LEAD(`Sales`,1) OVER (ORDER BY `Row_ID`)) AS R FROM `superstore`) AS T
+WHERE T.R > T.SALES
